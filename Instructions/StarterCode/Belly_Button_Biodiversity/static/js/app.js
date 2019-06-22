@@ -1,116 +1,133 @@
-function getSampleNames(){
-  var selector = document.getElementById('selDataset');
-  var url = "/names";
-  Plotly.d3.json(url, function(error, response) {
-      if (error) return console.warn(error);
-      var data = response;
-      data.map(function(sample){
-          var option = document.createElement('option')
-          option.text = sample
-          option.value = sample
-          selector.appendChild(option)
-      });
+console.log("app.js loaded");
+
+function buildMetadata(sample) {
+  // @TODO: Complete the following function that builds the metadata panel
+  // Use `d3.json` to fetch the metadata for a sample
+    // Use d3 to select the panel with id of `#sample-metadata`
+    var sample_metadata = d3.select("#sample-metadata");
+
+    // Use `.html("") to clear any existing metadata
+    sample_metadata.html("");
+
+    // Use `Object.entries` to add each key and value pair to the panel
+    // Hint: Inside the loop, you will need to use d3 to append new
+    // tags for each key-value in the metadata. 
+    
+    d3.json("/metadata/" + sample).then((sampleMetadata) => {
+      
+      Object.entries(sampleMetadata).forEach(function([key, value]) {
+        sample_metadata
+          .append("p")
+          .text(`${key} : ${value}`)
+      }); 
+    }); 
+
+    // BONUS: Build the Gauge Chart
+    buildGauge(sample.WFREQ);
+}
+
+function buildCharts(sample) {
+  console.log(sample);
+
+  // @TODO: Use `d3.json` to fetch the sample data for the plots
+  d3.json("/samples/" + sample).then((samples) => {
+
+    var otu_ids = samples["otu_ids"];
+    var otu_labels = samples["otu_labels"];
+
+    // @TODO: Build a Bubble Chart using the sample data
+    var bubble = {
+      x: otu_ids,
+      y: samples.sample_values,
+      mode: `markers`,
+      text: otu_labels,
+      marker: {
+        color: otu_ids,
+        size: samples.sample_values
+      }
+    };
+
+    var bubbleData = [bubble]
+
+    var bubbleLayout = {
+      showlegend: false,
+      height: 600,
+      width: 800,
+      xaxis: {
+        title: "OTU ID"
+      },
+      yaxis: {
+        title: "Sample"
+      },
+      title: "Belly Button Biodiversity"
+    };
+
+    Plotly.newPlot("bubble", bubbleData, bubbleLayout);
   });
-};
 
-getSampleNames();
+  d3.json("/samples/" + sample).then((samples) => {
 
+    var otu_ids = samples["otu_ids"];
+    var otu_labels = samples["otu_labels"];
 
+    // @TODO: Build a Pie Chart
+    // HINT: You will need to use slice() to grab the top 10 sample_values,
+    // otu_ids, and labels (10 each).
 
-function updatePie(sample) {
-  var sampleURL = `/samples/${sample}`
-  console.log(sampleURL)
-  Plotly.d3.json(sampleURL,function(error,response){
-      if (error) return console.log(error);
-      console.log(response)
-      var labels = []
-      var values = []
-      var hovers = []
-      for(i=0; i<10; i++){
-          var label = response[0].otu_ids[i];
-          labels.push(label);
-          var value = response[1].sample_values[i];
-          values.push(value);
-          var hover = response[2][label - 1];
-          hovers.push(hover);
-      };
-      var trace = {
-          values: values,
-          labels: labels,
-          type: "pie",
-          text: hovers,
-          hoverinfo: "label+text+value+percent",
-          textinfo: "percent"
-      };
-      var data = [trace]
-      var layout = {
-          margin: {
-              l: 10,
-              r: 10,
-              b: 10,
-              t: 10,
-              pad: 4
-          }
-      }   
+    otu_ids = otu_ids.slice(0, 10);
+    otu_labels = otu_labels.slice(0, 10);
 
-      Plotly.newPlot("pieChart", data, layout)
+    var pieData = [{
+      values: otu_ids,
+      labels: otu_ids,
+      type: "pie"
+    }];
+
+    var pieLayout = {
+      height: 550,
+      width: 550,
+      showlegend: true,
+      legend: {
+        "orientation": "v",
+        "x": 1.02,
+        "xanchor": "right",
+        "y": 1.0,
+        "yanchor": "bottom"
+      }
+    };
+  
+    Plotly.newPlot("pie", pieData, pieLayout);
+  
   });
-};
 
-function updateBubble(sample) {
-  var sampleURL = `/samples/${sample}`
-  Plotly.d3.json(sampleURL,function(error,response){
-      if (error) return console.log(error);
-      var otuIDs = response[0].otu_ids;
-      var sampleValues = response[1].sample_values
-      var otuDescriptions = [];
-      for(i=0; i<otuIDs.length; i++) {
-          otuDescriptions.push(response[2][otuIDs[i] - 1]);
-      };
-      var trace = {
-          x: otuIDs,
-          y: sampleValues,
-          mode: 'markers',
-          type: 'scatter',
-          marker: {
-              size: sampleValues,
-              color: otuIDs,
-              colorscale: "Rainbow"
-          },
-          text: otuDescriptions,
-        };
-      var data = [trace]
-      Plotly.newPlot("bubbleChart", data)
+}
+
+function init() {
+  // Grab a reference to the dropdown select element
+  var selector = d3.select("#selDataset");
+
+  // Use the list of sample names to populate the select options
+  d3.json("/names").then((sampleNames) => {
+
+    sampleNames.forEach((sample) => {
+      selector
+        .append("option")
+        .text(sample)
+        .property("value", sample);
+    });
+
+    // Use the first sample from the list to build the initial plots
+    const firstSample = sampleNames[0];
+    buildCharts(firstSample);
+    buildMetadata(firstSample);
   });
-};
+}
 
-function updateMetadata(sample){
-  var sampleURL = `/metadata/${sample}`
-  Plotly.d3.json(sampleURL,function(error,response){
-      if (error) return console.log(error);
-      console.log(response);
-      var data = response[0];
-      console.log(data)
-      var metaList = document.getElementById('sampleMetadata');
-      metaList.innerHTML = '';
-      var metaItems = [["Sample","SAMPLEID"],["Ethnicity","ETHNICITY"],["Gender","GENDER"],["Age","AGE"],
-          ["Weekly Wash Frequency","WFREQ"],["Type (Innie/Outie)","BBTYPE"],["Country","COUNTRY012"],["Dog Owner","DOG"],["Cat Owner","CAT"]];
-      console.log(metaList)
-      for(i=0; i<metaItems.length; i++){
-          var newLi = document.createElement('li');
-          newLi.innerHTML = `${metaItems[i][0]}: ${data[metaItems[i][1]]}`;
-          metaList.appendChild(newLi);
-      };
-  });
-};
+function optionChanged(newSample) {
+  // Fetch new data each time a new sample is selected
+  buildCharts(newSample);
+  buildMetadata(newSample);
+}
 
-//initialize
-// optionChanged("BB_940");
-
-
-function optionChanged(sample){
-    updatePie(sample);
-    updateBubble(sample);
-    updateMetadata(sample);
-  };
-
+// Initialize the dashboard
+init();
