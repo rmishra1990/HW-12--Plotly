@@ -9,9 +9,6 @@ function buildMetadata(sample) {
     // Use `.html("") to clear any existing metadata
     sample_metadata.html("");
 
-    // Use `Object.entries` to add each key and value pair to the panel
-    // Hint: Inside the loop, you will need to use d3 to append new
-    // tags for each key-value in the metadata. 
     
     d3.json("/metadata/" + sample).then((sampleMetadata) => {
       
